@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQL Formatter</title>
+<meta name="description" content="Pretty-print and minify SQL in your browser. Optional keyword uppercasing, real tokenizer handling strings, comments, and common clauses like SELECT, FROM, WHERE, JOIN, and GROUP BY. Nothing leaves your machine.">
+<link rel="canonical" href="https://0xelitesystem.github.io/sql-formatter/">
+<meta property="og:title" content="SQL Formatter">
+<meta property="og:description" content="Format and minify SQL locally with a real tokenizer. Optional keyword uppercasing, handles strings and comments. Nothing leaves your browser.">
+<meta property="og:url" content="https://0xelitesystem.github.io/sql-formatter/">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"SQL Formatter","applicationCategory":"DeveloperApplication","operatingSystem":"Any (browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://0xelitesystem.github.io/sql-formatter/","author":{"@type":"Person","name":"0xelitesystem","url":"https://elitesystem.ai"}}
+</script>
+<style>
+:root {
+  --bg: #fafaf6;
+  --surface: #ffffff;
+  --ink: #0a1d1e;
+  --ink-soft: #2c4a4c;
+  --rule: #c8d4d3;
+  --teal: #0f5c60;
+  --teal-deep: #0a4548;
+  --gold: #b07d2a;
+  --gold-deep: #8a611f;
+  --ok: #1a5c2e;
+  --warn: #8a5a00;
+  --err: #8b1a1a;
+  --code-bg: #f0ebe1;
+}
+[data-theme="dark"] {
+  --bg: #0c1c1d;
+  --surface: #14292a;
+  --ink: #e8ebe6;
+  --ink-soft: #b0c0bd;
+  --rule: #2a4042;
+  --teal: #4ab4ba;
+  --teal-deep: #6dc8ce;
+  --gold: #d4a155;
+  --gold-deep: #e6b876;
+  --ok: #6dd380;
+  --warn: #d4a155;
+  --err: #e88080;
+  --code-bg: #0a1718;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: ui-serif, Georgia, "Times New Roman", serif;
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  padding: 2rem 1rem;
+  line-height: 1.55;
+}
+.wrap { max-width: 1100px; margin: 0 auto; }
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 2px solid var(--teal);
+  padding-bottom: 1rem;
+  margin-bottom: 2rem;
+}
+h1 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--teal);
+}
+.tag {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.75rem;
+  color: var(--gold-deep);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+[data-theme="dark"] .tag { color: var(--gold); }
+.theme-btn {
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--ink-soft);
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.theme-btn:hover { border-color: var(--teal); color: var(--teal); }
+.lede {
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+  margin-bottom: 1.75rem;
+  max-width: 64ch;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 1.25rem;
+  border-radius: 3px;
+}
+.control-group { display: flex; align-items: center; gap: 0.5rem; }
+.control-group label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  margin: 0;
+}
+.checkbox-group { display: flex; align-items: center; gap: 0.45rem; }
+.checkbox-group label { cursor: pointer; }
+input[type="checkbox"] { width: 1rem; height: 1rem; accent-color: var(--teal); cursor: pointer; }
+select {
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 2px;
+}
+button {
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 0.5rem 0.95rem;
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  border-radius: 2px;
+}
+button:hover { border-color: var(--teal); }
+button.primary {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: var(--surface);
+  font-weight: 600;
+}
+[data-theme="dark"] button.primary { color: var(--bg) !important; }
+button.primary:hover { background: var(--teal-deep); border-color: var(--teal-deep); }
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+@media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  padding: 1.1rem;
+  border-radius: 3px;
+  display: flex;
+  flex-direction: column;
+}
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+.panel-title { font-size: 0.9rem; font-weight: 600; letter-spacing: 0.02em; }
+label.field-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  display: block;
+  margin-bottom: 0.5rem;
+}
+textarea {
+  width: 100%;
+  min-height: 340px;
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  padding: 0.85rem;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  resize: vertical;
+  border-radius: 2px;
+  white-space: pre;
+  overflow-wrap: normal;
+  tab-size: 2;
+}
+textarea:focus { outline: 2px solid var(--teal); outline-offset: 1px; }
+pre.output {
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  padding: 0.85rem;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  border-radius: 2px;
+  min-height: 340px;
+  overflow: auto;
+  white-space: pre;
+  flex: 1;
+}
+.copied { color: var(--ok); font-weight: 600; font-size: 0.8rem; }
+.err-msg {
+  color: var(--err);
+  font-size: 0.85rem;
+  margin-top: 0.75rem;
+  padding: 0.65rem;
+  background: var(--code-bg);
+  border-left: 3px solid var(--err);
+  border-radius: 2px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  white-space: pre-wrap;
+}
+.privacy-note {
+  font-size: 0.78rem;
+  color: var(--gold-deep);
+  margin-top: 1rem;
+}
+[data-theme="dark"] .privacy-note { color: var(--gold); }
+footer {
+  margin-top: 3rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+}
+footer a { color: var(--teal); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+@media (max-width: 640px) {
+  body { padding: 1rem 0.75rem; }
+  h1 { font-size: 1.4rem; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div>
+    <h1>SQL Formatter</h1>
+    <div class="tag">Pretty-print, minify, uppercase</div>
+  </div>
+  <button class="theme-btn" id="theme-toggle" type="button">Dark</button>
+</header>
+
+<p class="lede">Paste SQL to pretty-print it onto clean lines and indented clauses, or minify it to a single compact statement. A real tokenizer handles quoted strings, single and double quoted identifiers, line and block comments, and common clauses like SELECT, FROM, WHERE, JOIN, and GROUP BY. Nothing leaves this page.</p>
+
+<div class="controls">
+  <div class="control-group">
+    <label for="mode">Mode</label>
+    <select id="mode">
+      <option value="pretty">Pretty-print</option>
+      <option value="minify">Minify</option>
+    </select>
+  </div>
+  <div class="control-group">
+    <label for="indent">Indent</label>
+    <select id="indent">
+      <option value="2">2 spaces</option>
+      <option value="4">4 spaces</option>
+      <option value="tab">Tab</option>
+    </select>
+  </div>
+  <div class="checkbox-group">
+    <input type="checkbox" id="uppercase" checked>
+    <label for="uppercase">Uppercase keywords</label>
+  </div>
+  <button id="sample-btn" type="button">Load sample</button>
+  <button id="clear-btn" type="button">Clear</button>
+</div>
+
+<div class="grid">
+  <div class="panel">
+    <label class="field-label" for="input">Input SQL</label>
+    <textarea id="input" placeholder="select id, name from users where active = 1 order by name" spellcheck="false" autocapitalize="off" autocorrect="off"></textarea>
+  </div>
+  <div class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Output</div>
+      <div style="display:flex; gap:0.6rem; align-items:center;">
+        <span class="copied" id="copied-msg" style="display:none;">Copied</span>
+        <button class="primary" id="copy-btn" type="button">Copy</button>
+      </div>
+    </div>
+    <pre class="output" id="output"></pre>
+    <div id="err-box"></div>
+  </div>
+</div>
+
+<div class="privacy-note">All tokenizing and formatting happens locally in your browser. The SQL is never sent to any server.</div>
+
+<footer>
+  <div>SQL Formatter. Open source, MIT licensed. <a href="https://github.com/0xelitesystem/sql-formatter" target="_blank" rel="noopener">View source</a>.</div>
+  <div>Formatting only, not a SQL validator.</div>
+</footer>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+// Theme
+const themeBtn = $("theme-toggle");
+function setTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  themeBtn.textContent = t === "dark" ? "Light" : "Dark";
+}
+themeBtn.addEventListener("click", () => {
+  const cur = document.documentElement.getAttribute("data-theme") || "light";
+  setTheme(cur === "dark" ? "light" : "dark");
+});
+if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) setTheme("dark");
+else setTheme("light");
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+// Keyword sets
+const KEYWORDS = new Set([
+  "SELECT","FROM","WHERE","AND","OR","NOT","INSERT","INTO","VALUES","UPDATE","SET",
+  "DELETE","CREATE","TABLE","ALTER","DROP","INDEX","VIEW","JOIN","INNER","LEFT",
+  "RIGHT","FULL","OUTER","CROSS","ON","GROUP","BY","ORDER","HAVING","LIMIT","OFFSET",
+  "UNION","ALL","DISTINCT","AS","IN","IS","NULL","LIKE","BETWEEN","EXISTS","CASE",
+  "WHEN","THEN","ELSE","END","ASC","DESC","COUNT","SUM","AVG","MIN","MAX","WITH",
+  "USING","PRIMARY","KEY","FOREIGN","REFERENCES","DEFAULT","CONSTRAINT","UNIQUE",
+  "CHECK","AUTO_INCREMENT","INT","INTEGER","VARCHAR","CHAR","TEXT","DATE","DATETIME",
+  "TIMESTAMP","BOOLEAN","DECIMAL","FLOAT","DOUBLE","RETURNING","INTERSECT","EXCEPT",
+  "OVER","PARTITION","ROW","ROWS","FETCH","NEXT","ONLY","CAST","COALESCE","TRUE","FALSE"
+]);
+
+// Clauses that begin a new line at base indent
+const NEWLINE_KEYWORDS = new Set([
+  "SELECT","FROM","WHERE","GROUP BY","ORDER BY","HAVING","LIMIT","OFFSET",
+  "UNION","UNION ALL","INTERSECT","EXCEPT","VALUES","SET","RETURNING","WITH",
+  "INSERT INTO","UPDATE","DELETE"
+]);
+
+// Join keywords also start a new line
+const JOIN_STARTERS = new Set(["JOIN","INNER","LEFT","RIGHT","FULL","CROSS"]);
+
+const AND_OR = new Set(["AND","OR"]);
+
+// Tokenizer
+// token: { type, value }  type in: ws, comment, string, ident, number, keyword, word, punct, operator
+function tokenize(sql) {
+  const tokens = [];
+  let i = 0;
+  const len = sql.length;
+  const isDigit = (c) => c >= "0" && c <= "9";
+  const isIdentStart = (c) => /[A-Za-z_@#]/.test(c);
+  const isIdentChar = (c) => /[A-Za-z0-9_@#$]/.test(c);
+
+  while (i < len) {
+    const c = sql[i];
+    // whitespace
+    if (c === " " || c === "\t" || c === "\n" || c === "\r") {
+      let start = i;
+      while (i < len && /\s/.test(sql[i])) i++;
+      tokens.push({ type: "ws", value: sql.slice(start, i) });
+      continue;
+    }
+    // line comment --
+    if (c === "-" && sql[i + 1] === "-") {
+      let start = i;
+      i += 2;
+      while (i < len && sql[i] !== "\n") i++;
+      tokens.push({ type: "comment", value: sql.slice(start, i), line: true });
+      continue;
+    }
+    // block comment /* */
+    if (c === "/" && sql[i + 1] === "*") {
+      let start = i;
+      i += 2;
+      while (i < len && !(sql[i] === "*" && sql[i + 1] === "/")) i++;
+      i = Math.min(len, i + 2);
+      tokens.push({ type: "comment", value: sql.slice(start, i), line: false });
+      continue;
+    }
+    // single-quoted string
+    if (c === "'") {
+      let start = i;
+      i++;
+      while (i < len) {
+        if (sql[i] === "'" && sql[i + 1] === "'") { i += 2; continue; }
+        if (sql[i] === "'") { i++; break; }
+        i++;
+      }
+      tokens.push({ type: "string", value: sql.slice(start, i) });
+      continue;
+    }
+    // double-quoted identifier
+    if (c === '"') {
+      let start = i;
+      i++;
+      while (i < len) {
+        if (sql[i] === '"' && sql[i + 1] === '"') { i += 2; continue; }
+        if (sql[i] === '"') { i++; break; }
+        i++;
+      }
+      tokens.push({ type: "ident", value: sql.slice(start, i) });
+      continue;
+    }
+    // backtick identifier
+    if (c === "`") {
+      let start = i;
+      i++;
+      while (i < len && sql[i] !== "`") i++;
+      if (i < len) i++;
+      tokens.push({ type: "ident", value: sql.slice(start, i) });
+      continue;
+    }
+    // number
+    if (isDigit(c) || (c === "." && isDigit(sql[i + 1]))) {
+      let start = i;
+      while (i < len && /[0-9.eE+\-]/.test(sql[i])) {
+        // stop sign unless part of exponent
+        if ((sql[i] === "+" || sql[i] === "-") && !(sql[i - 1] === "e" || sql[i - 1] === "E")) break;
+        i++;
+      }
+      tokens.push({ type: "number", value: sql.slice(start, i) });
+      continue;
+    }
+    // word / keyword / identifier
+    if (isIdentStart(c)) {
+      let start = i;
+      while (i < len && isIdentChar(sql[i])) i++;
+      const raw = sql.slice(start, i);
+      const upper = raw.toUpperCase();
+      tokens.push({ type: KEYWORDS.has(upper) ? "keyword" : "word", value: raw });
+      continue;
+    }
+    // multi-char operators
+    const two = sql.slice(i, i + 2);
+    if (["<=", ">=", "<>", "!=", "||", "::", ":="].includes(two)) {
+      tokens.push({ type: "operator", value: two });
+      i += 2;
+      continue;
+    }
+    // punctuation and single operators
+    if ("(),;".includes(c)) {
+      tokens.push({ type: "punct", value: c });
+      i++;
+      continue;
+    }
+    if ("=<>+-*/%.".includes(c)) {
+      tokens.push({ type: "operator", value: c });
+      i++;
+      continue;
+    }
+    // anything else, emit as-is
+    tokens.push({ type: "other", value: c });
+    i++;
+  }
+  return tokens;
+}
+
+// Significant tokens = drop whitespace but keep comments and everything else.
+// Each surviving token records whether whitespace preceded it in the source.
+function significant(tokens) {
+  const out = [];
+  let sawSpace = false;
+  for (const t of tokens) {
+    if (t.type === "ws") { sawSpace = true; continue; }
+    out.push(Object.assign({}, t, { spaceBefore: sawSpace }));
+    sawSpace = false;
+  }
+  return out;
+}
+
+function applyCase(tok, upper) {
+  if (tok.type === "keyword") return upper ? tok.value.toUpperCase() : tok.value;
+  return tok.value;
+}
+
+// Look ahead to combine multi-word clause keywords like GROUP BY
+function clauseAt(toks, idx) {
+  const kw = (n) => toks[idx + n] && toks[idx + n].type === "keyword" ? toks[idx + n].value.toUpperCase() : null;
+  const a = kw(0), b = kw(1);
+  if (a === "GROUP" && b === "BY") return { text: "GROUP BY", len: 2 };
+  if (a === "ORDER" && b === "BY") return { text: "ORDER BY", len: 2 };
+  if (a === "UNION" && b === "ALL") return { text: "UNION ALL", len: 2 };
+  if (a === "INSERT" && b === "INTO") return { text: "INSERT INTO", len: 2 };
+  if (a === "LEFT" && b === "JOIN") return { text: "LEFT JOIN", len: 2 };
+  if (a === "RIGHT" && b === "JOIN") return { text: "RIGHT JOIN", len: 2 };
+  if (a === "INNER" && b === "JOIN") return { text: "INNER JOIN", len: 2 };
+  if (a === "FULL" && b === "JOIN") return { text: "FULL JOIN", len: 2 };
+  if (a === "CROSS" && b === "JOIN") return { text: "CROSS JOIN", len: 2 };
+  if (a === "FULL" && b === "OUTER" && kw(2) === "JOIN") return { text: "FULL OUTER JOIN", len: 3 };
+  if (a === "LEFT" && b === "OUTER" && kw(2) === "JOIN") return { text: "LEFT OUTER JOIN", len: 3 };
+  if (a === "RIGHT" && b === "OUTER" && kw(2) === "JOIN") return { text: "RIGHT OUTER JOIN", len: 3 };
+  return null;
+}
+
+function isNewlineClause(text) {
+  const u = text.toUpperCase();
+  if (NEWLINE_KEYWORDS.has(u)) return true;
+  if (/\bJOIN$/.test(u)) return true;
+  return false;
+}
+
+function minifySql(tokens) {
+  const upper = $("uppercase").checked;
+  const toks = significant(tokens);
+  let out = "";
+  for (let k = 0; k < toks.length; k++) {
+    const t = toks[k];
+    if (t.type === "comment" && !t.line) {
+      // keep block comments inline
+      out += (out && !out.endsWith(" ") ? " " : "") + t.value + " ";
+      continue;
+    }
+    if (t.type === "comment" && t.line) {
+      // line comment cannot be minified onto one line safely, convert to block
+      const body = t.value.replace(/^--\s?/, "");
+      out += (out && !out.endsWith(" ") ? " " : "") + "/* " + body.trim() + " */ ";
+      continue;
+    }
+    const val = applyCase(t, upper);
+    const prev = toks[k - 1];
+    let sep = " ";
+    if (t.type === "punct") {
+      if (t.value === "(") {
+        // Tight after a function name, spaced after logical keywords like IN or VALUES.
+        sep = shouldSpaceBefore(toks, k) ? " " : "";
+      } else if (t.value === ")" || t.value === "," || t.value === ";") {
+        sep = "";
+      }
+    }
+    if (prev && prev.type === "punct" && prev.value === "(") sep = "";
+    if (prev && prev.type === "operator") sep = " ";
+    if (t.type === "operator" && t.value === ".") sep = "";
+    if (prev && prev.type === "operator" && prev.value === ".") sep = "";
+    if (out === "") sep = "";
+    // avoid double spaces
+    if (sep === " " && out.endsWith(" ")) sep = "";
+    out += sep + val;
+  }
+  return out.replace(/\s+;/g, ";").trim();
+}
+
+function prettySql(tokens, indentUnit) {
+  const upper = $("uppercase").checked;
+  const toks = significant(tokens);
+  const lines = [];
+  let current = "";
+  let parenDepth = 0; // paren nesting; structural line breaks pause inside parens
+  let lineIndent = 0; // extra indent units for the line currently being built
+
+  function flush() {
+    if (current.trim() !== "") {
+      lines.push(indentUnit.repeat(Math.max(0, lineIndent)) + current.trimEnd());
+    }
+    current = "";
+  }
+  function append(text, spaceBefore) {
+    if (current === "") current = text;
+    else current += (spaceBefore ? " " : "") + text;
+  }
+
+  for (let k = 0; k < toks.length; k++) {
+    const t = toks[k];
+
+    // Standalone comments on their own line
+    if (t.type === "comment") {
+      flush();
+      lines.push(t.value.trim());
+      lineIndent = 0;
+      continue;
+    }
+
+    // Inside parentheses (subqueries, value lists), keep everything inline so
+    // grouped expressions stay readable and predictable.
+    if (parenDepth > 0) {
+      if (t.type === "punct" && t.value === "(") { append("(", shouldSpaceBefore(toks, k)); parenDepth++; continue; }
+      if (t.type === "punct" && t.value === ")") { parenDepth = Math.max(0, parenDepth - 1); append(")", false); continue; }
+      if (t.type === "punct" && t.value === ",") { append(",", false); continue; }
+      const clauseP = t.type === "keyword" ? clauseAt(toks, k) : null;
+      if (clauseP) { append(upper ? clauseP.text : renderClauseOriginal(toks, k, clauseP.len), shouldSpaceBefore(toks, k)); k += clauseP.len - 1; continue; }
+      append(applyCase(t, upper), shouldSpaceBefore(toks, k));
+      continue;
+    }
+
+    // Multi-word clause detection
+    const clause = t.type === "keyword" ? clauseAt(toks, k) : null;
+    if (clause && isNewlineClause(clause.text)) {
+      flush();
+      lineIndent = 0;
+      current = upper ? clause.text : renderClauseOriginal(toks, k, clause.len);
+      k += clause.len - 1;
+      continue;
+    }
+
+    // Single keyword that starts a new line
+    if (t.type === "keyword") {
+      const u = t.value.toUpperCase();
+      if (NEWLINE_KEYWORDS.has(u) || JOIN_STARTERS.has(u) || u === "JOIN") {
+        flush();
+        lineIndent = 0;
+        current = applyCase(t, upper);
+        continue;
+      }
+      if (AND_OR.has(u)) {
+        // AND / OR onto a new indented line under WHERE
+        flush();
+        lineIndent = 1;
+        current = applyCase(t, upper);
+        continue;
+      }
+    }
+
+    // Punctuation handling
+    if (t.type === "punct") {
+      if (t.value === ",") {
+        append(",", false);
+        // new line for next list item, indented one level under the clause
+        flush();
+        lineIndent = 1;
+        continue;
+      }
+      if (t.value === "(") {
+        append("(", shouldSpaceBefore(toks, k));
+        parenDepth++;
+        continue;
+      }
+      if (t.value === ")") {
+        parenDepth = Math.max(0, parenDepth - 1);
+        append(")", false);
+        continue;
+      }
+      if (t.value === ";") {
+        append(";", false);
+        flush();
+        lineIndent = 0;
+        continue;
+      }
+    }
+
+    // operators and general tokens
+    const val = applyCase(t, upper);
+    const sb = shouldSpaceBefore(toks, k);
+    append(val, sb);
+  }
+  flush();
+  return lines.join("\n");
+}
+
+function renderClauseOriginal(toks, idx, count) {
+  const parts = [];
+  for (let n = 0; n < count; n++) parts.push(toks[idx + n].value);
+  return parts.join(" ");
+}
+
+// Keywords that name a function call, so no space before the following "("
+const FUNCTION_KEYWORDS = new Set([
+  "COUNT","SUM","AVG","MIN","MAX","CAST","COALESCE","NULLIF","ROUND","ABS",
+  "LOWER","UPPER","LENGTH","SUBSTRING","TRIM","NOW","DATE"
+]);
+
+function shouldSpaceBefore(toks, k) {
+  if (k === 0) return false;
+  const t = toks[k];
+  const prev = toks[k - 1];
+  if (!prev) return false;
+  if (t.type === "operator" && t.value === ".") return false;
+  if (prev.type === "operator" && prev.value === ".") return false;
+  if (prev.type === "punct" && prev.value === "(") return false;
+  if (t.type === "punct" && (t.value === ")" || t.value === "," || t.value === ";")) return false;
+  // Opening paren: honor the source. If the writer put no space before "(",
+  // keep it tight (function call). Known function keywords are always tight.
+  if (t.type === "punct" && t.value === "(") {
+    if (prev.type === "keyword" && FUNCTION_KEYWORDS.has(prev.value.toUpperCase())) return false;
+    if ((prev.type === "word" || prev.type === "ident") && t.spaceBefore === false) return false;
+  }
+  return true;
+}
+
+function run() {
+  const src = $("input").value;
+  const mode = $("mode").value;
+  const indentSel = $("indent").value;
+  const unit = indentSel === "tab" ? "\t" : " ".repeat(parseInt(indentSel, 10));
+  $("err-box").innerHTML = "";
+
+  if (!src.trim()) {
+    $("output").textContent = "";
+    return;
+  }
+
+  let tokens;
+  try {
+    tokens = tokenize(src);
+  } catch (e) {
+    $("err-box").innerHTML = '<div class="err-msg">Could not tokenize the SQL: ' + escapeHtml(e.message || String(e)) + "</div>";
+    $("output").textContent = "";
+    return;
+  }
+
+  try {
+    $("output").textContent = mode === "minify" ? minifySql(tokens) : prettySql(tokens, unit);
+  } catch (e) {
+    $("err-box").innerHTML = '<div class="err-msg">Formatting error: ' + escapeHtml(e.message || String(e)) + "</div>";
+    $("output").textContent = "";
+  }
+}
+
+["input"].forEach(id => $(id).addEventListener("input", run));
+["mode", "indent"].forEach(id => $(id).addEventListener("change", run));
+$("uppercase").addEventListener("change", run);
+
+$("sample-btn").addEventListener("click", () => {
+  $("input").value = "select u.id, u.name, count(o.id) as order_count from users u left join orders o on o.user_id = u.id where u.active = 1 and u.created_at > '2025-01-01' group by u.id, u.name having count(o.id) > 3 order by order_count desc limit 20;";
+  run();
+});
+$("clear-btn").addEventListener("click", () => {
+  $("input").value = "";
+  $("output").textContent = "";
+  $("err-box").innerHTML = "";
+});
+
+$("copy-btn").addEventListener("click", async () => {
+  const text = $("output").textContent;
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (e) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (_) {}
+    document.body.removeChild(ta);
+  }
+  const msg = $("copied-msg");
+  msg.style.display = "inline";
+  setTimeout(() => { msg.style.display = "none"; }, 1400);
+});
+
+run();
+</script>
+</body>
+</html>
